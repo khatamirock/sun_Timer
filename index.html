@@ -147,6 +147,45 @@
             pointer-events: none;
             z-index: -1;
         }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 15px;
+            }
+            .controls {
+                flex-direction: column;
+                gap: 15px;
+            }
+            .info-panel {
+                flex-direction: column;
+                gap: 10px;
+            }
+            h1 {
+                font-size: 1.8em;
+            }
+            .info-value {
+                font-size: 1.3em;
+            }
+            .control-group {
+                width: 100%;
+                align-items: stretch;
+            }
+            input[type="date"], input[type="time"] {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 1.5em;
+            }
+            .info-value {
+                font-size: 1.2em;
+            }
+        }
     </style>
 </head>
 <body>
@@ -179,7 +218,7 @@
         
         <div class="canvas-container">
             <div class="sky-gradient" id="skyGradient"></div>
-            <canvas id="protractorCanvas" width="600" height="400"></canvas>
+            <canvas id="protractorCanvas"></canvas>
         </div>
         
         <div class="info-panel">
@@ -217,9 +256,7 @@
         // Canvas setup
         const canvas = document.getElementById('protractorCanvas');
         const ctx = canvas.getContext('2d');
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height - 50;
-        const radius = 300;
+        let centerX, centerY, radius;
         
         // UI elements
         const dateInput = document.getElementById('dateInput');
@@ -396,7 +433,7 @@
             ctx.stroke();
             
             // Draw angle markings and labels
-            ctx.font = '14px Arial';
+            ctx.font = `${Math.max(10, radius * 0.04)}px Arial`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
@@ -421,7 +458,7 @@
                     const labelY = centerY - (radius - 30) * Math.sin(radian);
                     
                     ctx.fillStyle = angle === 90 ? '#3498db' : '#333';
-                    ctx.font = angle === 90 ? 'bold 16px Arial' : '14px Arial';
+                    ctx.font = angle === 90 ? `bold ${Math.max(12, radius * 0.045)}px Arial` : `${Math.max(10, radius * 0.04)}px Arial`;
                     ctx.fillText(angle.toString(), labelX, labelY);
                 }
             }
@@ -494,20 +531,21 @@
             const sunY = centerY - radius * Math.sin(angleRad);
             
             // Draw sun
+            const sunRadius = Math.max(10, radius * 0.06);
             ctx.beginPath();
-            ctx.arc(sunX, sunY, 20, 0, Math.PI * 2);
+            ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
             ctx.fillStyle = '#f1c40f';
             ctx.fill();
             
             // Draw sun rays
             ctx.strokeStyle = '#f39c12';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = Math.max(1, radius * 0.005);
             for (let i = 0; i < 12; i++) {
                 const rayAngle = i * Math.PI / 6;
-                const startX = sunX + 25 * Math.cos(rayAngle);
-                const startY = sunY + 25 * Math.sin(rayAngle);
-                const endX = sunX + 35 * Math.cos(rayAngle);
-                const endY = sunY + 35 * Math.sin(rayAngle);
+                const startX = sunX + (sunRadius + 5) * Math.cos(rayAngle);
+                const startY = sunY + (sunRadius + 5) * Math.sin(rayAngle);
+                const endX = sunX + (sunRadius + 15) * Math.cos(rayAngle);
+                const endY = sunY + (sunRadius + 15) * Math.sin(rayAngle);
                 
                 ctx.beginPath();
                 ctx.moveTo(startX, startY);
@@ -535,7 +573,7 @@
             const textY = centerY - (radius * 0.5) * Math.sin((Math.PI + angleRad) / 2);
             
             ctx.fillStyle = '#3498db';
-            ctx.font = 'bold 14px Arial';
+            ctx.font = `bold ${Math.max(12, radius * 0.04)}px Arial`;
             ctx.textAlign = 'center';
             ctx.fillText(`${elevation.toFixed(1)}°`, textX, textY);
         }
@@ -646,8 +684,49 @@
             }
         });
         
+        function redraw() {
+            const dateParts = dateInput.value.split('-');
+            const timeParts = timeInput.value.split(':');
+
+            if (dateParts.length === 3 && timeParts.length >= 2) {
+                const simDate = new Date(
+                    parseInt(dateParts[0]),
+                    parseInt(dateParts[1]) - 1,
+                    parseInt(dateParts[2]),
+                    parseInt(timeParts[0]),
+                    parseInt(timeParts[1])
+                );
+
+                const sunPosition = calculateSunPosition(simDate);
+                const currentHour = simDate.getHours() + simDate.getMinutes() / 60;
+                const timeFraction = Math.max(0, Math.min(1,
+                    (currentHour - sunPosition.sunrise) / (sunPosition.sunset - sunPosition.sunrise)
+                ));
+
+                updateBackground(sunPosition.elevation);
+                drawProtractor();
+                drawSun(sunPosition.elevation, sunPosition.azimuth, timeFraction);
+            }
+        }
+
+        function resizeCanvas() {
+            const container = document.querySelector('.canvas-container');
+            const newWidth = container.clientWidth;
+            
+            canvas.width = newWidth;
+            canvas.height = newWidth * 0.667; // Maintain 3:2 aspect ratio
+
+            centerX = canvas.width / 2;
+            centerY = canvas.height - Math.min(50, canvas.height * 0.1);
+            radius = Math.min(centerX, centerY) * 0.9;
+            
+            redraw();
+        }
+
         // Initialize and start simulation
         initializeDateTime();
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
         animationId = requestAnimationFrame(updateSimulation);
     </script>
 </body>
